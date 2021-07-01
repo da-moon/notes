@@ -7,7 +7,12 @@
 ```bash
 filepath="/path/on/disk/"
 url="https://github.com/my/repo/releases/download/id/archive.tar.gz"
-curl -LJO --progress-bar -o "${filepath}" "${url}"
+curl \
+  --location \
+  --remote-header-name \
+  --progress-bar \
+  --output "${filepath}" \
+  "${url}"
 ```
 
 ## wget
