@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+#-*-mode:sh;indent-tabs-mode:nil;tab-width:2;coding:utf-8-*-
+# vi: ft=sh tabstop=2 shiftwidth=2 softtabstop=2 expandtab:
+
+# [NOTE] => https://www.adaltas.com/en/2018/09/19/kvm-vagrant-archlinux
+
+set -euo pipefail
+if ! command -- sudo -h > /dev/null 2>&1 ; then
+  echo >&2 '*** Please install "sudo" package'
+  exit 1
+fi
+if [[ $EUID -eq 0 ]]; then
+  echo >&2 "*** You must run this script as non-root user with sudo permission." ;
+  exit 1
+fi
+echo >&2 '*** running full system upgrade.';
+sudo pacman --noconfirm -Syyu ;
+
+# [ NOTE ] => for building aur packages
+pacman_packages=("git")
+pacman_packages+=($(pacman -Qg base-devel | awk '{print $2}'))
+# [ NOTE# ] => libvirt
+pacman_packages+="libvirt" ;
+pacman_packages+="virt-install" ;
+pacman_packages+="qemu" ;
+pacman_packages+="qemu-arch-extra" ;
+pacman_packages+="virt-manager" ;
+pacman_packages+="ebtables" ;
+pacman_packages+="dnsmasq" ;
+pacman_packages+="bridge-utils" ;
+if [ ${#pacman_packages[@]} -ne 0 ]; then
+  for pkg in "${pacman_packages[@]}"; do
+    echo >&2 "*** ensuring $pkg is installed.";
+   ! pacman -Qi "$pkg" > /dev/null 2>&1 && sudo pacman -S --noconfirm $pkg  > /dev/null 2>&1 ;
+  done
+fi
+
+if ! command -- paru -h > /dev/null 2>&1 ; then
+ echo >&2 '*** paru not found in path.installing.';
+ rm -rf /tmp/paru
+ git clone https://aur.archlinux.org/paru.git /tmp/paru
+ pushd /tmp/paru
+ makepkg -sic --noconfirm
+ popd
+ sudo rm -rf /tmp/paru
+fi
+aur_packages=();
+if [ ${#aur_packages[@]} -ne 0 ]; then
+  for pkg in "${aur_packages[@]}"; do
+    echo >&2 "*** ensuring $pkg is installed.";
+   ! pacman -Qi "$pkg" > /dev/null 2>&1 && paru -Sy --noconfirm --removemake --cleanafter
+  done
+fi
+
+kernel_modules=();
+kernel_modules+="9p"
+kernel_modules+="9pnet"
+kernel_modules+="9pnet_virtio"
+kernel_modules+="virtio"
+kernel_modules+="virtio-net"
+if [ ${#kernel_modules[@]} -ne 0 ]; then
+  for mod in "${kernel_modules[@]}"; do
+    echo >&2 "*** removing any exisiting '${mod}' kernel module autoload value.";
+    sudo sed -i "/$mod/d" /etc/modules
+    sudo sed -i "/$mod/d" /etc/modules-load.d/* || true
+  done
+  for mod in "${kernel_modules[@]}"; do
+    echo >&2 "*** ensuring '${mod}' kernel module is loaded.";
+    sudo modprobe "${mod}"
+    echo "${mod}" | sudo tee "/etc/modules-load.d/${mod}.conf" > /dev/null ;
+  done
+fi
+
+if [ -r /etc/libvirt/qemu.conf ]; then
+  echo >&2 "*** configuring qemu" ;
+  sudo sed -i \
+  # -e '/user\s*=/d' \
+  # -e '/group\s*=/d' \
+  -e '/dynamic_ownership\s*=/d' \
+  /etc/libvirt/qemu.conf
+  (
+    # echo "user = $(id -u)" ;
+    # echo "group = $(id -g)" ;
+    echo "dynamic_ownership = 1" ;
+  ) | sudo tee -a /etc/libvirt/qemu.conf > /dev/null ;
+fi
+echo >&2 "*** ensuring libvirtd service starts in traditional mode"
+sudo systemctl mask libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket libvirtd-tls.socket libvirtd-tcp.socket > /dev/null 2>&1
+sudo systemctl disable --now libvirtd-tcp.socket > /dev/null 2>&1 || true
+sudo systemctl enable --now libvirtd > /dev/null 2>&1 ;
+sudo systemctl restart libvirtd
+if command -- vagrant -h > /dev/null 2>&1 ; then
+  echo >&2 "*** vagrant detected"
+  echo >&2 "*** ensuring vagrant-libvirt has the required build header files"
+  # https://github.com/hashicorp/vagrant/issues/12445#issuecomment-876254254
+  [ -r /opt/vagrant/embedded/include/ruby-3.0.0/ruby/st.h ] \
+  && [ ! -r /opt/vagrant/embedded/include/ruby-3.0.0/st.h ] \
+  && sudo ln -s /opt/vagrant/embedded/include/ruby-3.0.0/ruby/st.h /opt/vagrant/embedded/include/ruby-3.0.0/st.h
+  echo >&2 "*** ensuring vagrant-libvirt plugin is installed"
+  vagrant_plugins=($(vagrant plugin list | awk '{print $1}'))
+  [[ ! " ${vagrant_plugins[@]} " =~ " vagrant-libvirt " ]] \
+    && vagrant plugin install vagrant-libvirt
+  # [ NOTE ] testing the plugin
+  TMP_DIR=$(mktemp -p)
+  if [[ ! "$TMP_DIR" ]]; then
+    echo >&2 "*** could not create temp dir"
+    exit 1
+  fi
+  rm -rf "$TMP_DIR"
+  function cleanup {
+    rm -rf "$TMP_DIR"
+    echo "deleted temp working directory $TMP_DIR"
+  }
+  trap cleanup EXIT
+
+  git clone https://gist.github.com/9d2e81703701b8d2dbb3d8647d6b73e8.git "$TMP_DIR"
+  pushd ${TMP_DIR}
+    vagrant destroy -f > /dev/null 2>&1 || true
+    vagrant up --provider=libvirt
+    vagrant destroy -f
+  popd
+fi
