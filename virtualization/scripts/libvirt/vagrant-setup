@@ -2,6 +2,9 @@
 #-*-mode:sh;indent-tabs-mode:nil;tab-width:2;coding:utf-8-*-
 # vi: ft=sh tabstop=2 shiftwidth=2 softtabstop=2 expandtab:
 set -euo pipefail
+
+# ─── INITIAL CHECKS AND SETUP ───────────────────────────────────────────────────
+
 if ! command -- sudo -h > /dev/null 2>&1 ; then
   echo >&2 '*** Please install "sudo" package'
   exit 1
@@ -14,6 +17,9 @@ echo >&2 '*** running full system upgrade.';
 sudo pacman --noconfirm -Syyu ;
 echo >&2 "*** ensuring vagrant is installed.";
 ! pacman -Qi "vagrant" > /dev/null 2>&1 && sudo pacman -S --noconfirm vagrant  > /dev/null 2>&1 ;
+
+# ─── PLUGIN INSTALL ─────────────────────────────────────────────────────────────
+
 echo >&2 "*** ensuring vagrant-libvirt has the required build header files"
 # https://github.com/hashicorp/vagrant/issues/12445#issuecomment-876254254
 [ -r /opt/vagrant/embedded/include/ruby-3.0.0/ruby/st.h ] \
@@ -23,7 +29,9 @@ echo >&2 "*** ensuring vagrant-libvirt plugin is installed"
 vagrant_plugins=($(vagrant plugin list | awk '{print $1}'))
 [[ ! " ${vagrant_plugins[@]} " =~ " vagrant-libvirt " ]] \
   && vagrant plugin install vagrant-libvirt
-# testing the plugin
+
+# ─── TESTING THE PLUGIN ─────────────────────────────────────────────────────────
+
 TMP_DIR=$(mktemp -p)
 if [[ ! "$TMP_DIR" ]]; then
   echo >&2 "*** could not create temp dir"
