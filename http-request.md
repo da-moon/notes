@@ -17,9 +17,9 @@ curl \
 
 - only return status code
 
-```bash$ii
+```bash
 uri="localhost:9991/ping";
-curl -o /dev/null -s -w "%{http_code}\n" "$uri" 
+curl -o /dev/null -s -w "%{http_code}\n" "$uri"
 ```
 
 - only headers
@@ -84,17 +84,27 @@ $request.set_Timeout(15000)
 $response = $request.GetResponse()
 $totalLength = [System.Math]::Floor($response.get_ContentLength() / 1024)
 $responseStream = $response.GetResponseStream()
-$targetStream = New-Object -TypeName System.IO.FileStream -ArgumentList $targetFile, Create
+$targetStream = New-Object `
+  -TypeName System.IO.FileStream `
+  -ArgumentList $targetFile, Create
 $buffer = New-Object byte[] 10KB
 $count = $responseStream.Read($buffer, 0, $buffer.length)
 $downloadedBytes = $count
 while ($count -gt 0) {
   $targetStream.Write($buffer, 0, $count)
   $count = $responseStream.Read($buffer, 0, $buffer.length)
-  $downloadedBytes = $downloadedBytes + $count
-  Write-Progress -activity "Downloading file '$($url.split('/') | Select -Last 1)'" -status "Downloaded ($([System.Math]::Floor($downloadedBytes/1024))K of $($totalLength)K): " -PercentComplete ((([System.Math]::Floor($downloadedBytes / 1024)) / $totalLength) * 100)
+  $downloadedBytes = $downloadedBytes + $count;
+  $download_bytes_floor=([System.Math]::Floor($downloadedBytes / 1024))
+  $status_msg="Downloaded ($($download_bytes_floor)K of $($totalLength)K): ";
+  $percent_complete=(($download_bytes_floor / $totalLength) * 100)l
+  Write-Progress `
+    -activity "Downloading file '$($url.split('/') `
+  | Select -Last 1)'" `
+    -status $status_msg `
+    -PercentComplete $percent_complete ;
 }
-Write-Progress -activity "Finished downloading file '$($url.split('/') | Select -Last 1)'"
+Write-Progress `
+  -activity "Finished downloading file '$($url.split('/') | Select -Last 1)'"
 $targetStream.Flush()
 $targetStream.Close()
 $targetStream.Dispose()
