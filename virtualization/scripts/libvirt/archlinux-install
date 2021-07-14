@@ -2,8 +2,6 @@
 #-*-mode:sh;indent-tabs-mode:nil;tab-width:2;coding:utf-8-*-
 # vi: ft=sh tabstop=2 shiftwidth=2 softtabstop=2 expandtab:
 
-# [NOTE] => https://www.adaltas.com/en/2018/09/19/kvm-vagrant-archlinux
-
 set -euo pipefail
 if ! command -- sudo -h > /dev/null 2>&1 ; then
   echo >&2 '*** Please install "sudo" package'
@@ -89,34 +87,3 @@ sudo systemctl mask libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket lib
 sudo systemctl disable --now libvirtd-tcp.socket > /dev/null 2>&1 || true
 sudo systemctl enable --now libvirtd > /dev/null 2>&1 ;
 sudo systemctl restart libvirtd
-if command -- vagrant -h > /dev/null 2>&1 ; then
-  echo >&2 "*** vagrant detected"
-  echo >&2 "*** ensuring vagrant-libvirt has the required build header files"
-  # https://github.com/hashicorp/vagrant/issues/12445#issuecomment-876254254
-  [ -r /opt/vagrant/embedded/include/ruby-3.0.0/ruby/st.h ] \
-  && [ ! -r /opt/vagrant/embedded/include/ruby-3.0.0/st.h ] \
-  && sudo ln -s /opt/vagrant/embedded/include/ruby-3.0.0/ruby/st.h /opt/vagrant/embedded/include/ruby-3.0.0/st.h
-  echo >&2 "*** ensuring vagrant-libvirt plugin is installed"
-  vagrant_plugins=($(vagrant plugin list | awk '{print $1}'))
-  [[ ! " ${vagrant_plugins[@]} " =~ " vagrant-libvirt " ]] \
-    && vagrant plugin install vagrant-libvirt
-  # [ NOTE ] testing the plugin
-  TMP_DIR=$(mktemp -p)
-  if [[ ! "$TMP_DIR" ]]; then
-    echo >&2 "*** could not create temp dir"
-    exit 1
-  fi
-  rm -rf "$TMP_DIR"
-  function cleanup {
-    rm -rf "$TMP_DIR"
-    echo "deleted temp working directory $TMP_DIR"
-  }
-  trap cleanup EXIT
-
-  git clone https://gist.github.com/9d2e81703701b8d2dbb3d8647d6b73e8.git "$TMP_DIR"
-  pushd ${TMP_DIR}
-    vagrant destroy -f > /dev/null 2>&1 || true
-    vagrant up --provider=libvirt
-    vagrant destroy -f
-  popd
-fi
