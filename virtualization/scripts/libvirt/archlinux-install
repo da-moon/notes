@@ -131,3 +131,8 @@ sudo systemctl mask libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket lib
 sudo systemctl disable --now libvirtd-tcp.socket > /dev/null 2>&1 || true
 sudo systemctl enable --now libvirtd > /dev/null 2>&1 ;
 sudo systemctl restart libvirtd
+! sudo systemctl is-active libvirtd > /dev/null 2>&1 && (
+echo >&2 '*** libvirtd service is not active';
+sudo systemctl status libvirtd --lines=0 | more ;
+exit 1;
+)
