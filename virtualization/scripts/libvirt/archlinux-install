@@ -78,6 +78,16 @@ if [ ${#kernel_modules[@]} -ne 0 ]; then
   done
 fi
 
+# ─── USERGROUP SETUP ────────────────────────────────────────────────────────────
+
+groups=($(getent group | /bin/grep -E 'libvirt|kvm' | cut -f1 -d:))
+if [ ${#groups[@]} -ne 0 ]; then
+  for grp in "${groups[@]}"; do
+    echo >&2 "*** ensuring user '$(whoami)' belongs to '$grp' group.";
+    sudo usermod -aG "$grp" "$(whoami)"
+  done
+fi
+
 # ─── QEMU CONFIGURATION ─────────────────────────────────────────────────────────
 
 if [ -r /etc/libvirt/qemu.conf ]; then
