@@ -17,43 +17,63 @@ fi
 echo >&2 '*** running full system upgrade.';
 sudo pacman --noconfirm -Syyu ;
 
-# ─── PACMAN PACKAGES ────────────────────────────────────────────────────────────
+# ─── REMOVING CONFLICTING PACKAGES ──────────────────────────────────────────────
 
+conflicting_packages=()
+conflicting_packages+=("qemu-headless")
+if [ ${#conflicting_packages[@]} -ne 0 ]; then
+  echo >&2 "*** ensuring conflicting packages are uninstalled.";
+  for pkg in "${conflicting_packages[@]}"; do
+    echo >&2 "*** ensuring ${pkg} has been removed.";
+    pacman -Qi "${pkg}" > /dev/null 2>&1 && sudo pacman  -Rcns --noconfirm "${pkg}"  > /dev/null 2>&1 ;
+  done
+fi
+echo >&2 "*** removing unused packages.";
+sudo pacman -Qdtq | xargs -r sudo pacman -Rcns --noconfirm
+
+# ─── INSTALLING PACMAN PACKAGES ─────────────────────────────────────────────────
+
+pacman_packages=()
 # [ NOTE ] => for building aur packages
-pacman_packages=("git")
-pacman_packages+=($(pacman -Qg base-devel | awk '{print $2}'))
+pacman_packages+=("git")
+# [ NOTE ] => base-devel group
+# pacman_packages+=($(pacman -Qg base-devel | awk '{print $2}'))
+pacman_packages+=("autoconf")
+pacman_packages+=("automake")
+pacman_packages+=("binutils")
+pacman_packages+=("bison")
+pacman_packages+=("fakeroot")
+pacman_packages+=("file")
+pacman_packages+=("findutils")
+pacman_packages+=("flex")
+pacman_packages+=("gawk")
+pacman_packages+=("gcc")
+pacman_packages+=("gettext")
+pacman_packages+=("grep")
+pacman_packages+=("groff")
+pacman_packages+=("gzip")
+pacman_packages+=("libtool")
+pacman_packages+=("m4")
+pacman_packages+=("make")
+pacman_packages+=("pacman")
+pacman_packages+=("patch")
+pacman_packages+=("pkgconf")
+pacman_packages+=("sed")
+pacman_packages+=("sudo")
+pacman_packages+=("texinfo")
+pacman_packages+=("which")
 # [ NOTE# ] => libvirt
 pacman_packages+=("libvirt") ;
 pacman_packages+=("virt-install") ;
 pacman_packages+=("qemu") ;
 pacman_packages+=("qemu-arch-extra") ;
 pacman_packages+=("virt-manager") ;
-pacman_packages+=("ebtables") ;
 pacman_packages+=("dnsmasq") ;
 pacman_packages+=("bridge-utils") ;
 if [ ${#pacman_packages[@]} -ne 0 ]; then
   for pkg in "${pacman_packages[@]}"; do
     echo >&2 "*** ensuring ${pkg} is installed.";
-   ! pacman -Qi "${pkg}" > /dev/null 2>&1 && sudo pacman -S --noconfirm "${pkg}"  > /dev/null 2>&1 ;
-  done
-fi
-
-# ─── AUR PACKAGES ───────────────────────────────────────────────────────────────
-
-if ! command -- paru -h > /dev/null 2>&1 ; then
- echo >&2 '*** paru not found in path.installing.';
- rm -rf /tmp/paru
- git clone https://aur.archlinux.org/paru.git /tmp/paru
- pushd /tmp/paru
- makepkg -sic --noconfirm
- popd
- sudo rm -rf /tmp/paru
-fi
-aur_packages=();
-if [ ${#aur_packages[@]} -ne 0 ]; then
-  for pkg in "${aur_packages[@]}"; do
-    echo >&2 "*** ensuring ${pkg} is installed.";
-   ! pacman -Qi "${pkg}" > /dev/null 2>&1 && paru -Sy --noconfirm --removemake --cleanafter "${pkg}"
+   ! pacman -Qi "${pkg}" > /dev/null 2>&1 && yes | sudo pacman -S "${pkg}"  > /dev/null 2>&1 ;
   done
 fi
 
@@ -68,8 +88,12 @@ kernel_modules+=("virtio-net")
 if [ ${#kernel_modules[@]} -ne 0 ]; then
   for mod in "${kernel_modules[@]}"; do
     echo >&2 "*** removing any exisiting '${mod}' kernel module autoload value.";
-    sudo sed -i "/$mod/d" /etc/modules
-    sudo sed -i "/$mod/d" /etc/modules-load.d/* || true
+    [ -r /etc/modules ] && sudo sed -i "/$mod/d" /etc/modules
+    if [ -d /etc/modules-load.d ]; then
+      find /etc/modules-load.d -type f -name '*.conf' \
+      | xargs -r sudo sed -i "/$mod/d" ;
+      sudo find /etc/modules-load.d -type f -empty -delete ;
+    fi
   done
   for mod in "${kernel_modules[@]}"; do
     echo >&2 "*** ensuring '${mod}' kernel module is loaded.";
@@ -83,8 +107,8 @@ fi
 groups=($(getent group | /bin/grep -E 'libvirt|kvm' | cut -f1 -d:))
 if [ ${#groups[@]} -ne 0 ]; then
   for grp in "${groups[@]}"; do
-    echo >&2 "*** ensuring user '$(whoami)' belongs to '$grp' group.";
-    sudo usermod -aG "$grp" "$(whoami)"
+    echo >&2 "*** ensuring user '$(whoami)' belongs to '${grp}' group.";
+    sudo usermod -aG "${grp}" "$(whoami)" ;
   done
 fi
 
@@ -104,7 +128,7 @@ if [ -r /etc/libvirt/libvirtd.conf ]; then
     echo "unix_sock_rw_perms = \"0770\"" ;
     echo "auth_unix_ro = \"none\"" ;
     echo "auth_unix_rw = \"none\"" ;
-  ) sudo tee -a /etc/libvirt/libvirtd.conf > /dev/null ;
+  ) | sudo tee -a /etc/libvirt/libvirtd.conf > /dev/null ;
 
 fi
 
@@ -112,9 +136,9 @@ fi
 
 if [ -r /etc/libvirt/qemu.conf ]; then
   echo >&2 "*** configuring qemu" ;
-  sudo sed -i \
   # -e '/user\s*=/d' \
   # -e '/group\s*=/d' \
+  sudo sed -i \
   -e '/dynamic_ownership\s*=/d' \
   /etc/libvirt/qemu.conf
   (
