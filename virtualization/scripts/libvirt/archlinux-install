@@ -3,6 +3,9 @@
 # vi: ft=sh tabstop=2 shiftwidth=2 softtabstop=2 expandtab:
 
 set -euo pipefail
+
+# ─── INITIAL CHECKS AND SETUP ───────────────────────────────────────────────────
+
 if ! command -- sudo -h > /dev/null 2>&1 ; then
   echo >&2 '*** Please install "sudo" package'
   exit 1
@@ -13,6 +16,8 @@ if [[ $EUID -eq 0 ]]; then
 fi
 echo >&2 '*** running full system upgrade.';
 sudo pacman --noconfirm -Syyu ;
+
+# ─── PACMAN PACKAGES ────────────────────────────────────────────────────────────
 
 # [ NOTE ] => for building aur packages
 pacman_packages=("git")
@@ -33,6 +38,8 @@ if [ ${#pacman_packages[@]} -ne 0 ]; then
   done
 fi
 
+# ─── AUR PACKAGES ───────────────────────────────────────────────────────────────
+
 if ! command -- paru -h > /dev/null 2>&1 ; then
  echo >&2 '*** paru not found in path.installing.';
  rm -rf /tmp/paru
@@ -49,6 +56,8 @@ if [ ${#aur_packages[@]} -ne 0 ]; then
    ! pacman -Qi "$pkg" > /dev/null 2>&1 && paru -Sy --noconfirm --removemake --cleanafter
   done
 fi
+
+# ─── KERNEL MODULES SETUP ───────────────────────────────────────────────────────
 
 kernel_modules=();
 kernel_modules+="9p"
@@ -69,6 +78,8 @@ if [ ${#kernel_modules[@]} -ne 0 ]; then
   done
 fi
 
+# ─── QEMU CONFIGURATION ─────────────────────────────────────────────────────────
+
 if [ -r /etc/libvirt/qemu.conf ]; then
   echo >&2 "*** configuring qemu" ;
   sudo sed -i \
@@ -82,6 +93,9 @@ if [ -r /etc/libvirt/qemu.conf ]; then
     echo "dynamic_ownership = 1" ;
   ) | sudo tee -a /etc/libvirt/qemu.conf > /dev/null ;
 fi
+
+# ─── SYSTEMD SETUP ──────────────────────────────────────────────────────────────
+
 echo >&2 "*** ensuring libvirtd service starts in traditional mode"
 sudo systemctl mask libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket libvirtd-tls.socket libvirtd-tcp.socket > /dev/null 2>&1
 sudo systemctl disable --now libvirtd-tcp.socket > /dev/null 2>&1 || true
