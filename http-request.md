@@ -15,6 +15,20 @@ curl \
   "${url}"
 ```
 
+- only return status code
+
+```bash$ii
+uri="localhost:9991/ping";
+curl -o /dev/null -s -w "%{http_code}\n" "$uri" 
+```
+
+- only headers
+
+```bash
+uri="http://awesome-site.com" ;
+curl -v -s "${uri}" 1> /dev/null
+```
+
 ## wget
 
 - download a file with progress bar
