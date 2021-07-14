@@ -60,11 +60,11 @@ fi
 # ─── KERNEL MODULES SETUP ───────────────────────────────────────────────────────
 
 kernel_modules=();
-kernel_modules+="9p"
-kernel_modules+="9pnet"
-kernel_modules+="9pnet_virtio"
-kernel_modules+="virtio"
-kernel_modules+="virtio-net"
+kernel_modules+=("9p")
+kernel_modules+=("9pnet")
+kernel_modules+=("9pnet_virtio")
+kernel_modules+=("virtio")
+kernel_modules+=("virtio-net")
 if [ ${#kernel_modules[@]} -ne 0 ]; then
   for mod in "${kernel_modules[@]}"; do
     echo >&2 "*** removing any exisiting '${mod}' kernel module autoload value.";
