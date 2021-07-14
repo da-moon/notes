@@ -88,6 +88,26 @@ if [ ${#groups[@]} -ne 0 ]; then
   done
 fi
 
+# ─── LIBVIRTD SETUP ─────────────────────────────────────────────────────────────
+
+if [ -r /etc/libvirt/libvirtd.conf ]; then
+  echo >&2 "*** configuring libvirtd" ;
+  unix_sock_group=$(getent group | /bin/grep -E 'libvirt' | cut -f1 -d: | head -n 1) ;
+  sudo sed -i \
+    -e '/unix_sock_group/d' \
+    -e '/unix_sock_rw_perms/d' \
+    -e '/auth_unix_ro/d' \
+    -e '/auth_unix_rw/d' \
+  /etc/libvirt/libvirtd.conf ;
+  (
+    echo "unix_sock_group = \"${unix_sock_group}\"" ;
+    echo "unix_sock_rw_perms = \"0770\"" ;
+    echo "auth_unix_ro = \"none\"" ;
+    echo "auth_unix_rw = \"none\"" ;
+  ) sudo tee -a /etc/libvirt/libvirtd.conf > /dev/null ;
+
+fi
+
 # ─── QEMU CONFIGURATION ─────────────────────────────────────────────────────────
 
 if [ -r /etc/libvirt/qemu.conf ]; then
