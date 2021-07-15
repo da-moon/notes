@@ -25,12 +25,19 @@ if [ ${#conflicting_packages[@]} -ne 0 ]; then
   echo >&2 "*** ensuring conflicting packages are uninstalled.";
   for pkg in "${conflicting_packages[@]}"; do
     echo >&2 "*** ensuring ${pkg} has been removed.";
-    pacman -Qi "${pkg}" > /dev/null 2>&1 && sudo pacman  -Rcns --noconfirm "${pkg}"  > /dev/null 2>&1 ;
+    pacman -Qi "${pkg}" > /dev/null 2>&1 && sudo pacman -Rcns --noconfirm "${pkg}"  > /dev/null 2>&1 || true ;
   done
 fi
-echo >&2 "*** removing unused packages.";
-sudo pacman -Qdtq | xargs -r sudo pacman -Rcns --noconfirm
-
+if sudo pacman -Qdtq > /dev/null 2>&1; then
+  unused=($(sudo pacman -Qdtq))
+  if [ ${#unused[@]} -ne 0 ]; then
+    echo >&2 "*** ensuring unused packages are uninstalled.";
+    for pkg in "${unused[@]}"; do
+      echo >&2 "*** ensuring ${pkg} has been removed.";
+      pacman -Qi "${pkg}" > /dev/null 2>&1 && sudo pacman -Rcns --noconfirm "${pkg}"  > /dev/null 2>&1 || true ;
+    done
+  fi
+fi
 # ─── INSTALLING PACMAN PACKAGES ─────────────────────────────────────────────────
 
 pacman_packages=()
@@ -74,7 +81,7 @@ pacman_packages+=("edk2-ovmf") ;
 if [ ${#pacman_packages[@]} -ne 0 ]; then
   for pkg in "${pacman_packages[@]}"; do
     echo >&2 "*** ensuring ${pkg} is installed.";
-   ! pacman -Qi "${pkg}" > /dev/null 2>&1 && yes | sudo pacman -S "${pkg}"  > /dev/null 2>&1 ;
+   ! pacman -Qi "${pkg}" > /dev/null 2>&1 && sudo pacman --noconfirm -S "${pkg}" > /dev/null 2>&1 ;
   done
 fi
 
