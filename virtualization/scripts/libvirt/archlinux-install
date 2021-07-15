@@ -78,11 +78,13 @@ pacman_packages+=("virt-manager") ;
 pacman_packages+=("dnsmasq") ;
 pacman_packages+=("bridge-utils") ;
 pacman_packages+=("edk2-ovmf") ;
+pacman_packages+=("dmidecode") ;
 if [ ${#pacman_packages[@]} -ne 0 ]; then
   for pkg in "${pacman_packages[@]}"; do
     echo >&2 "*** ensuring ${pkg} is installed.";
-   ! pacman -Qi "${pkg}" > /dev/null 2>&1 && sudo pacman --noconfirm -S "${pkg}" > /dev/null 2>&1 ;
+   ! pacman -Qi "${pkg}" > /dev/null 2>&1 && sudo pacman --noconfirm -S "${pkg}"
   done
+   ! pacman -Qi "ebtables" > /dev/null 2>&1 && yes | sudo pacman -S "ebtables" || true
 fi
 
 # ─── KERNEL MODULES SETUP ───────────────────────────────────────────────────────
